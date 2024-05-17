@@ -213,28 +213,32 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener{
         this.view.setVisible(true);
     }
     private void sendMyName() throws IOException, InterruptedException{
-        String inputValue = JOptionPane.showInputDialog("Please your player name");
-        //JSON構成
-        //likes <json>{"Type":"PlayerName","From":"Client","To":"Server","Name":"Simple"}</json>
+        // 固定のプレイヤー名
+        String fixedPlayerName = "YasudaLabo";
+        
+        // JSON構成
+        // likes <json>{"Type":"PlayerName","From":"Client","To":"Server","Name":"FixedPlayerName"}</json>
         HashMap<String, String> response = new HashMap<>();
-        response.put("From","Client");
-        response.put("To","Server");
-        response.put("Type","PlayerName");
-        response.put("Name",inputValue);
+        response.put("From", "Client");
+        response.put("To", "Server");
+        response.put("Type", "PlayerName");
+        response.put("Name", fixedPlayerName);
+        
         StringBuilder sbuf = new StringBuilder();
         try {
             ObjectMapper mapper = new ObjectMapper();
-            //sbuf.append("<json>");
+            // sbuf.append("<json>");  // コメントアウトされた行
             sbuf.append(mapper.writeValueAsString(response));
-            //sbuf.append("</json>");
+            // sbuf.append("</json>"); // コメントアウトされた行
         } catch (JsonProcessingException ex) {
             Logger.getLogger(mainFrame.class.getName()).log(Level.SEVERE, null, ex);
         }
-        if(sbuf.length() > 0){
+        
+        if (sbuf.length() > 0) {
             this.sendMassageWithSocket(sbuf.toString());
         }
-        
     }
+
     private void sendForwardMessage(int cardNumber) throws IOException, InterruptedException{
         if(!this.myCardList.contains(cardNumber)){
             return;
