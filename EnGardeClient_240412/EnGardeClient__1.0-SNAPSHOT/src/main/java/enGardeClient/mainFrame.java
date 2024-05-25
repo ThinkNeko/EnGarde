@@ -18,6 +18,7 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
@@ -32,109 +33,183 @@ import javax.swing.text.StyleConstants;
  *
  * @author ktajima
  */
-public class mainFrame extends javax.swing.JFrame implements ActionListener{
+public class mainFrame extends javax.swing.JFrame implements ActionListener {
 
+    // 追加変数宣言.
+    /*
+     * 命名則
+     * my or your:自分の情報か相手の情報かを明示。
+     * rule:ゲーム進行のルールについて。
+     */
+    private int my_attackdirection; // 0->1スタート、1->23スタート.
+    private List<Integer> my_hand = new ArrayList<>();; // 手札.
+    private int my_matchcard[] = new int[2]; // 勝負するカード候補、2個まで.
+    private int my_actioncard[] = new int[2]; // 出すカード、0:数字、1:方向0->F,1->B
+    private int my_position; // 自身の現在地.
+
+    private int your_matchcard[] = new int[2]; // 相手が勝負するカードの推測、2個まで.
+    private int your_position; // 相手のの現在地.
+
+    
+    private int rule_deck; // デッキの残りカード.
+    private int rule_distance; // 相手との距離.
+    private int rule_cemetery[] = new int[25]; // 使用済みカード、墓地.
+    private boolean rule_issue[] = new boolean[100]; // 勝敗履歴.
+    private int rule_win; // 勝ち数.
+    private int rule_lose; // 負け数.
+
+    // 追加変数宣言おわり.
     private String serverAddress;
     private int serverPort;
 
-    //Socket版    
+    // Socket版
     private Socket connectedSocket = null;
     private BufferedReader serverReader;
     private MessageReceiver receiver;
     private PrintWriter serverWriter;
-    
-    //表示部分のドキュメントを管理するクラス
+
+    // 表示部分のドキュメントを管理するクラス
     private DefaultStyledDocument document_server;
     private DefaultStyledDocument document_system;
 
+    // 追加メソッド開始.
+
+    /** BoardInfoからデータを取得 */
+    private void get_BoardInfo(HashMap<String, String> data) {
+        my_position = Integer.parseInt(data.get("PlayerPosition_0"));
+        your_position = Integer.parseInt(data.get("PlayerPosition_1"));
+        rule_distance = Math.abs(my_position-your_position);
+        rule_deck = Integer.parseInt(data.get("NumofDeck"));
+    }
+
+    /** HandInfoからデータを取得 */
+    private void get_HandInfo(HashMap<String, String> data) {
+        my_hand.clear();
+        String[] keys = { "Hand1", "Hand2", "Hand3", "Hand4", "Hand5" };
+        for (String key : keys) {
+            if (data.containsKey(key)) {
+                this.my_hand.add(Integer.parseInt(data.get(key)));
+            }
+        }
+        
+
+    }
+
+    private void get_RoundEnd(HashMap<String, String> data) {
+
+    }
     
+    private void get_GameEnd(HashMap<String, String> data) {
+
+    }
+    private void algorithm_player0() {
+
+    }
+
+    private void algorithm_player1() {
+
+    }
+    // 追加メソッド終了.
+
     /** HashMapを送るメソッド */
-    private void sendMassageWithSocket(HashMap<String,String> data) throws IOException, InterruptedException{
-            StringBuilder response = new StringBuilder();
-            ObjectMapper mapper = new ObjectMapper();
-            //response.append("<json>");
-            response.append(mapper.writeValueAsString(data));
-            //response.append("</json>");
-            this.serverWriter.println(response.toString());
-            this.serverWriter.flush();
-            //DEBUG
-            this.printMessage("[Sent]"+data.toString());
-            //DEBUG
+
+    private void sendMassageWithSocket(HashMap<String, String> data) throws IOException, InterruptedException {
+        StringBuilder response = new StringBuilder();
+        ObjectMapper mapper = new ObjectMapper();
+        // response.append("<json>");
+        response.append(mapper.writeValueAsString(data));
+        // response.append("</json>");
+        this.serverWriter.println(response.toString());
+        this.serverWriter.flush();
+        // DEBUG
+        this.printMessage("[Sent]" + data.toString());
+        // DEBUG
     }
 
     /** 指定した文字列を送るメソッド */
-    private void sendMassageWithSocket(String message) throws IOException, InterruptedException{
-            this.serverWriter.println(message);
-            this.serverWriter.flush();
-            //DEBUG
-            this.printMessage("[Sent]"+message);
-            //DEBUG
+    private void sendMassageWithSocket(String message) throws IOException, InterruptedException {
+        this.serverWriter.println(message);
+        this.serverWriter.flush();
+        // DEBUG
+        this.printMessage("[Sent]" + message);
+        // DEBUG
     }
 
-    
-    private void connectToServer(){
+    private void connectToServer() {
         this.serverAddress = this.jTextField1.getText();
         this.serverPort = Integer.parseInt(this.jTextField2.getText());
 
         // Socket版
         try {
-            this.connectedSocket = new Socket(this.serverAddress,this.serverPort);
+            this.connectedSocket = new Socket(this.serverAddress, this.serverPort);
             this.serverReader = new BufferedReader(new InputStreamReader(connectedSocket.getInputStream()));
             this.serverWriter = new PrintWriter(new OutputStreamWriter(connectedSocket.getOutputStream()));
-        
+
             this.receiver = new MessageReceiver(this);
             this.receiver.start();
             this.printMessage("サーバに接続しました。");
-            
+
         } catch (IOException ex) {
             this.printMessage("サーバに接続できませんでした。");
             Logger.getLogger(mainFrame.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
-    
-    /** スレッドに読み込みを行わせる用の取り出しメソッド
-     * @return  */
-    public BufferedReader getServerReader(){
+
+    /**
+     * スレッドに読み込みを行わせる用の取り出しメソッド
+     * 
+     * @return
+     */
+    public BufferedReader getServerReader() {
         return this.serverReader;
     }
-    
-    /** スレッドから読みこんだメッセージを受信するメソッド
-     * @param message */
-    public void receiveMessageFromServer(String message){
+
+    /**
+     * スレッドから読みこんだメッセージを受信するメソッド
+     * 
+     * @param message
+     */
+    public void receiveMessageFromServer(String message) {
         this.showRecivedMessage(message);
         try {
-            //JSON -> HashMAP
+            // JSON -> HashMAP
             ObjectMapper mapper = new ObjectMapper();
-            HashMap<String,String> de_map = mapper.readValue(message, HashMap.class);
+            HashMap<String, String> de_map = mapper.readValue(message, HashMap.class);
             this.receiveDataFromServer(de_map);
 
         } catch (JsonProcessingException ex) {
         }
     }
-    
-    /** GUI上に受信したメッセージを表示するメソッド
-     * @param message */
-    public void showRecivedMessage(String message){
+
+    /**
+     * GUI上に受信したメッセージを表示するメソッド
+     * 
+     * @param message
+     */
+    public void showRecivedMessage(String message) {
         try {
             SimpleAttributeSet attribute = new SimpleAttributeSet();
             attribute.addAttribute(StyleConstants.Foreground, Color.BLACK);
-            //ドキュメントにその属性情報つきの文字列を挿入
-            document_server.insertString(document_server.getLength(), message+"\n", attribute);
+            // ドキュメントにその属性情報つきの文字列を挿入
+            document_server.insertString(document_server.getLength(), message + "\n", attribute);
             this.jTextArea1.setCaretPosition(document_server.getLength());
 
         } catch (BadLocationException ex) {
         }
     }
-    
-    /** GUI上にシステムメッセージを表示するメソッド
-     * @param message */
-    public void printMessage(String message){
+
+    /**
+     * GUI上にシステムメッセージを表示するメソッド
+     * 
+     * @param message
+     */
+    public void printMessage(String message) {
         System.out.println(message);
         try {
             SimpleAttributeSet attribute = new SimpleAttributeSet();
             attribute.addAttribute(StyleConstants.Foreground, Color.BLACK);
-            //ドキュメントにその属性情報つきの文字列を挿入
-            document_system.insertString(document_system.getLength(), message+"\n", attribute);
+            // ドキュメントにその属性情報つきの文字列を挿入
+            document_system.insertString(document_system.getLength(), message + "\n", attribute);
             this.jTextArea3.setCaretPosition(document_system.getLength());
 
         } catch (BadLocationException ex) {
@@ -142,31 +217,58 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener{
     }
 
     private int myPlayerID = -1;
-    
-    /** データハンドリングメソッド
-     * @param data */
-    public void receiveDataFromServer(HashMap<String,String> data){
-        if(!data.containsKey("Type")){
+
+    /**
+     * データハンドリングメソッド
+     * 
+     * @param data
+     */
+    public void receiveDataFromServer(HashMap<String, String> data) {
+        if (!data.containsKey("Type")) {
             return;
         }
         try {
             String type = data.get("Type");
-            switch(type){
+            switch (type) {
                 case "ConnectionStart":
-                    //自分の番号の確定
+                    // 自分の番号の確定
                     this.myPlayerID = Integer.parseInt(data.get("ClientID"));
-                    //なまえの入力
+                    // なまえの入力
                     this.sendMyName();
                     this.view = new EnGardeGUI();
                     this.view.addEventListener(this);
+
+                    // 自身の攻め方向の決定.
+                    my_attackdirection = Integer.parseInt(data.get("ClientID"));
+
                     break;
                 case "NameReceived":
                     break;
                 case "BoardInfo":
+                    // メインボード情報.
                     this.showBoard(data);
+
+                    get_BoardInfo(data);
                     break;
                 case "HandInfo":
+                    // 手札のカードの情報.
                     this.showHand(data);
+
+                    get_HandInfo(data);
+                    break;
+                case "DoPlay":
+                    // プレイヤーのターンが来たことを知らせる.
+                    if(my_attackdirection==0){
+                        algorithm_player0();
+                    }else if(my_attackdirection == 1){
+                        algorithm_player1();
+                    }
+                    break;
+                case "RoundEnd":
+                    // ラウンド終了.
+                    
+                    break;
+                case "GameEnd":
                     break;
                 default:
             }
@@ -176,29 +278,33 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener{
             Logger.getLogger(mainFrame.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
+
     private EnGardeGUI view;
     private ArrayList<Integer> myCardList = new ArrayList<>();
 
     /** 現在のボードの描画 */
-    private void showBoard(HashMap<String,String> data) {
-        //{"Type":"BoardInfo","PlayerPosition_1":"23","NumofDeck":"15","CurrentPlayer":"0","PlayerPosition_0":"1","From":"Server","To":"Client","PlayerScore_0":"0","PlayerScore_1":"0"}
+    private void showBoard(HashMap<String, String> data) {
+        // {"Type":"BoardInfo","PlayerPosition_1":"23","NumofDeck":"15","CurrentPlayer":"0","PlayerPosition_0":"1","From":"Server","To":"Client","PlayerScore_0":"0","PlayerScore_1":"0"}
         int currentPlayer = Integer.parseInt(data.get("CurrentPlayer"));
         int player0Score = Integer.parseInt(data.get("PlayerScore_0"));
         int player1Score = Integer.parseInt(data.get("PlayerScore_1"));
         int player0Position = Integer.parseInt(data.get("PlayerPosition_0"));
         int player1Position = Integer.parseInt(data.get("PlayerPosition_1"));
-        int DeckCount       = Integer.parseInt(data.get("NumofDeck"));
-        this.view.setDrawData(currentPlayer, player0Score, player1Score, player0Position, player1Position, DeckCount, new ArrayList<Integer>(), new ArrayList<Integer>());
+        int DeckCount = Integer.parseInt(data.get("NumofDeck"));
+        this.view.setDrawData(currentPlayer, player0Score, player1Score, player0Position, player1Position, DeckCount,
+                new ArrayList<Integer>(), new ArrayList<Integer>());
         this.view.setPlayerHand(myPlayerID, myCardList);
         this.view.setVisible(true);
     }
+
     /** 手札の状況 */
-    private void showHand(HashMap<String,String> data) {
-        //{Hand3=1, Hand4=3, Type=HandInfo, Hand5=1, Hand1=5, Hand2=4, From=Server, To=Client}
+    private void showHand(HashMap<String, String> data) {
+        // {Hand3=1, Hand4=3, Type=HandInfo, Hand5=1, Hand1=5, Hand2=4, From=Server,
+        // To=Client}
         this.myCardList.clear();
-        String[] keys = {"Hand1","Hand2","Hand3","Hand4","Hand5"};
-        for(String key:keys){
-            if(data.containsKey(key)){
+        String[] keys = { "Hand1", "Hand2", "Hand3", "Hand4", "Hand5" };
+        for (String key : keys) {
+            if (data.containsKey(key)) {
                 this.myCardList.add(Integer.parseInt(data.get(key)));
             }
         }
@@ -212,152 +318,155 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener{
         }
         this.view.setVisible(true);
     }
-    private void sendMyName() throws IOException, InterruptedException{
+
+    private void sendMyName() throws IOException, InterruptedException {
         // 固定のプレイヤー名
-        String fixedPlayerName = "YasudaLabo";
-        
+        String PlayerName = "YasudaLabo";
+
         // JSON構成
-        // likes <json>{"Type":"PlayerName","From":"Client","To":"Server","Name":"FixedPlayerName"}</json>
+        // likes
+        // <json>{"Type":"PlayerName","From":"Client","To":"Server","Name":"FixedPlayerName"}</json>
         HashMap<String, String> response = new HashMap<>();
         response.put("From", "Client");
         response.put("To", "Server");
         response.put("Type", "PlayerName");
-        response.put("Name", fixedPlayerName);
-        
+        response.put("Name", PlayerName);
+
         StringBuilder sbuf = new StringBuilder();
         try {
             ObjectMapper mapper = new ObjectMapper();
-            // sbuf.append("<json>");  // コメントアウトされた行
+            // sbuf.append("<json>"); // コメントアウトされた行
             sbuf.append(mapper.writeValueAsString(response));
             // sbuf.append("</json>"); // コメントアウトされた行
         } catch (JsonProcessingException ex) {
             Logger.getLogger(mainFrame.class.getName()).log(Level.SEVERE, null, ex);
         }
-        
+
         if (sbuf.length() > 0) {
             this.sendMassageWithSocket(sbuf.toString());
         }
     }
 
-    private void sendForwardMessage(int cardNumber) throws IOException, InterruptedException{
-        if(!this.myCardList.contains(cardNumber)){
+    private void sendForwardMessage(int cardNumber) throws IOException, InterruptedException {
+        if (!this.myCardList.contains(cardNumber)) {
             return;
         }
-        //JSON構成
-        //likes <json>{"Type":"PlayerName","From":"Client","To":"Server","Name":"Simple"}</json>
+        // JSON構成
+        // likes
+        // <json>{"Type":"PlayerName","From":"Client","To":"Server","Name":"Simple"}</json>
         HashMap<String, String> response = new HashMap<>();
-        response.put("From","Client");
-        response.put("To","Server");
-        response.put("Type","Play");
-        response.put("Direction","F");
-        response.put("MessageID","101");
-        response.put("PlayCard",Integer.toString(cardNumber));
-        
+        response.put("From", "Client");
+        response.put("To", "Server");
+        response.put("Type", "Play");
+        response.put("Direction", "F");
+        response.put("MessageID", "101");
+        response.put("PlayCard", Integer.toString(cardNumber));
+
         StringBuilder sbuf = new StringBuilder();
         try {
             ObjectMapper mapper = new ObjectMapper();
-            //sbuf.append("<json>");
+            // sbuf.append("<json>");
             sbuf.append(mapper.writeValueAsString(response));
-            //sbuf.append("</json>");
+            // sbuf.append("</json>");
         } catch (JsonProcessingException ex) {
             Logger.getLogger(mainFrame.class.getName()).log(Level.SEVERE, null, ex);
         }
-        if(sbuf.length() > 0){
+        if (sbuf.length() > 0) {
             this.sendMassageWithSocket(sbuf.toString());
         }
     }
 
+    private void sendBackwardMessage(int cardNumber) throws IOException, InterruptedException {
+        if (!this.myCardList.contains(cardNumber)) {
+            return;
+        }
+        // JSON構成
+        // likes
+        // <json>{"Type":"PlayerName","From":"Client","To":"Server","Name":"Simple"}</json>
+        HashMap<String, String> response = new HashMap<>();
+        response.put("From", "Client");
+        response.put("To", "Server");
+        response.put("Type", "Play");
+        response.put("Direction", "B");
+        response.put("MessageID", "101");
+        response.put("PlayCard", Integer.toString(cardNumber));
 
-    private void sendBackwardMessage(int cardNumber) throws IOException, InterruptedException{
-        if(!this.myCardList.contains(cardNumber)){
-            return;
-        }
-        //JSON構成
-        //likes <json>{"Type":"PlayerName","From":"Client","To":"Server","Name":"Simple"}</json>
-        HashMap<String, String> response = new HashMap<>();
-        response.put("From","Client");
-        response.put("To","Server");
-        response.put("Type","Play");
-        response.put("Direction","B");
-        response.put("MessageID","101");
-        response.put("PlayCard",Integer.toString(cardNumber));
-        
         StringBuilder sbuf = new StringBuilder();
         try {
             ObjectMapper mapper = new ObjectMapper();
-            //sbuf.append("<json>");
+            // sbuf.append("<json>");
             sbuf.append(mapper.writeValueAsString(response));
-            //sbuf.append("</json>");
+            // sbuf.append("</json>");
         } catch (JsonProcessingException ex) {
             Logger.getLogger(mainFrame.class.getName()).log(Level.SEVERE, null, ex);
         }
-        if(sbuf.length() > 0){
+        if (sbuf.length() > 0) {
             this.sendMassageWithSocket(sbuf.toString());
         }
     }
-    
-    private void sendAttackMessage(int cardNumber,int cardCount) throws IOException, InterruptedException{
-        if(!this.myCardList.contains(cardNumber)){
+
+    private void sendAttackMessage(int cardNumber, int cardCount) throws IOException, InterruptedException {
+        if (!this.myCardList.contains(cardNumber)) {
             return;
         }
-        //JSON構成
-        //<json>{"Type":"Play","PlayCard":"4","From":"Client","To":"Server","NumOfCard":"2","MessageID":"102"}</json>
+        // JSON構成
+        // <json>{"Type":"Play","PlayCard":"4","From":"Client","To":"Server","NumOfCard":"2","MessageID":"102"}</json>
         HashMap<String, String> response = new HashMap<>();
-        response.put("From","Client");
-        response.put("To","Server");
-        response.put("Type","Play");
-        response.put("NumOfCard","B");
-        response.put("MessageID","102");
-        response.put("NumOfCard",Integer.toString(cardCount));
-        response.put("PlayCard",Integer.toString(cardNumber));
-        
+        response.put("From", "Client");
+        response.put("To", "Server");
+        response.put("Type", "Play");
+        response.put("NumOfCard", "B");
+        response.put("MessageID", "102");
+        response.put("NumOfCard", Integer.toString(cardCount));
+        response.put("PlayCard", Integer.toString(cardNumber));
+
         StringBuilder sbuf = new StringBuilder();
         try {
             ObjectMapper mapper = new ObjectMapper();
-            //sbuf.append("<json>");
+            // sbuf.append("<json>");
             sbuf.append(mapper.writeValueAsString(response));
-            //sbuf.append("</json>");
+            // sbuf.append("</json>");
         } catch (JsonProcessingException ex) {
             Logger.getLogger(mainFrame.class.getName()).log(Level.SEVERE, null, ex);
         }
-        if(sbuf.length() > 0){
+        if (sbuf.length() > 0) {
             this.sendMassageWithSocket(sbuf.toString());
         }
     }
-    
+
     /** このメソッドは単に固定値を送るだけ */
-     private void sendEvaluateMessage() throws IOException, InterruptedException{
-        //JSON構成
-        //<json>{"Type":"Evaluation","PlayCard":"4","From":"Client","To":"Server","NumOfCard":"2","MessageID":"102"}</json>
+    private void sendEvaluateMessage() throws IOException, InterruptedException {
+        // JSON構成
+        // <json>{"Type":"Evaluation","PlayCard":"4","From":"Client","To":"Server","NumOfCard":"2","MessageID":"102"}</json>
         HashMap<String, String> response = new HashMap<>();
-        response.put("From","Client");
-        response.put("To","Server");
-        response.put("Type","Evaluation");
-        response.put("1F","0.1");
-        response.put("2F","0.1");
-        response.put("3F","0.1");
-        response.put("4F","0.1");
-        response.put("5F","0.1");
-        response.put("1B","0.1");
-        response.put("2B","0.1");
-        response.put("3B","0.1");
-        response.put("4B","0.1");
-        response.put("5B","0.1");
-        
+        response.put("From", "Client");
+        response.put("To", "Server");
+        response.put("Type", "Evaluation");
+        response.put("1F", "0.1");
+        response.put("2F", "0.1");
+        response.put("3F", "0.1");
+        response.put("4F", "0.1");
+        response.put("5F", "0.1");
+        response.put("1B", "0.1");
+        response.put("2B", "0.1");
+        response.put("3B", "0.1");
+        response.put("4B", "0.1");
+        response.put("5B", "0.1");
+
         StringBuilder sbuf = new StringBuilder();
         try {
             ObjectMapper mapper = new ObjectMapper();
-            //sbuf.append("<json>");
+            // sbuf.append("<json>");
             sbuf.append(mapper.writeValueAsString(response));
-            //sbuf.append("</json>");
+            // sbuf.append("</json>");
         } catch (JsonProcessingException ex) {
             Logger.getLogger(mainFrame.class.getName()).log(Level.SEVERE, null, ex);
         }
-        if(sbuf.length() > 0){
+        if (sbuf.length() > 0) {
             this.sendMassageWithSocket(sbuf.toString());
         }
-    }   
-    
+    }
+
     /**
      * Creates new form mainFrame
      */
@@ -365,12 +474,11 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener{
         initComponents();
         this.document_server = new DefaultStyledDocument();
         this.document_system = new DefaultStyledDocument();
-        
+
         this.jTextArea1.setDocument(this.document_server);
         this.jTextArea3.setDocument(this.document_system);
-        
+
     }
-        
 
     /**
      * This method is called from within the constructor to initialize the form.
@@ -378,7 +486,8 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener{
      * regenerated by the Form Editor.
      */
     @SuppressWarnings("unchecked")
-    // <editor-fold defaultstate="collapsed" desc="Generated Code">//GEN-BEGIN:initComponents
+    // <editor-fold defaultstate="collapsed" desc="Generated
+    // Code">//GEN-BEGIN:initComponents
     private void initComponents() {
 
         jLabel1 = new javax.swing.JLabel();
@@ -453,84 +562,114 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener{
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
         layout.setHorizontalGroup(
-            layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGroup(layout.createSequentialGroup()
-                .addContainerGap()
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING, false)
-                        .addGroup(javax.swing.GroupLayout.Alignment.LEADING, layout.createSequentialGroup()
-                            .addComponent(jLabel4)
-                            .addGap(0, 327, Short.MAX_VALUE))
+                layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                         .addGroup(layout.createSequentialGroup()
-                            .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING, false)
-                                .addComponent(jLabel3, javax.swing.GroupLayout.Alignment.LEADING, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                                .addComponent(jLabel2, javax.swing.GroupLayout.Alignment.LEADING, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
-                            .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                            .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
-                                .addComponent(jTextField1)
-                                .addComponent(jTextField2, javax.swing.GroupLayout.DEFAULT_SIZE, 318, Short.MAX_VALUE))))
-                    .addComponent(jLabel5)
-                    .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
-                        .addComponent(jButton1)
-                        .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 366, javax.swing.GroupLayout.PREFERRED_SIZE))
-                    .addComponent(jLabel6)
-                    .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING, false)
-                        .addComponent(jScrollPane3, javax.swing.GroupLayout.Alignment.LEADING)
-                        .addGroup(layout.createSequentialGroup()
-                            .addComponent(jButton3)
-                            .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                            .addComponent(jButton2))
-                        .addComponent(jScrollPane2, javax.swing.GroupLayout.Alignment.LEADING, javax.swing.GroupLayout.DEFAULT_SIZE, 366, Short.MAX_VALUE))
-                    .addComponent(jLabel1, javax.swing.GroupLayout.PREFERRED_SIZE, 266, javax.swing.GroupLayout.PREFERRED_SIZE))
-                .addContainerGap(14, Short.MAX_VALUE))
-        );
+                                .addContainerGap()
+                                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                                        .addGroup(layout
+                                                .createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING, false)
+                                                .addGroup(javax.swing.GroupLayout.Alignment.LEADING,
+                                                        layout.createSequentialGroup()
+                                                                .addComponent(jLabel4)
+                                                                .addGap(0, 327, Short.MAX_VALUE))
+                                                .addGroup(layout.createSequentialGroup()
+                                                        .addGroup(layout
+                                                                .createParallelGroup(
+                                                                        javax.swing.GroupLayout.Alignment.TRAILING,
+                                                                        false)
+                                                                .addComponent(jLabel3,
+                                                                        javax.swing.GroupLayout.Alignment.LEADING,
+                                                                        javax.swing.GroupLayout.DEFAULT_SIZE,
+                                                                        javax.swing.GroupLayout.DEFAULT_SIZE,
+                                                                        Short.MAX_VALUE)
+                                                                .addComponent(jLabel2,
+                                                                        javax.swing.GroupLayout.Alignment.LEADING,
+                                                                        javax.swing.GroupLayout.DEFAULT_SIZE,
+                                                                        javax.swing.GroupLayout.DEFAULT_SIZE,
+                                                                        Short.MAX_VALUE))
+                                                        .addPreferredGap(
+                                                                javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                                        .addGroup(layout
+                                                                .createParallelGroup(
+                                                                        javax.swing.GroupLayout.Alignment.LEADING,
+                                                                        false)
+                                                                .addComponent(jTextField1)
+                                                                .addComponent(jTextField2,
+                                                                        javax.swing.GroupLayout.DEFAULT_SIZE, 318,
+                                                                        Short.MAX_VALUE))))
+                                        .addComponent(jLabel5)
+                                        .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
+                                                .addComponent(jButton1)
+                                                .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 366,
+                                                        javax.swing.GroupLayout.PREFERRED_SIZE))
+                                        .addComponent(jLabel6)
+                                        .addGroup(layout
+                                                .createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING, false)
+                                                .addComponent(jScrollPane3, javax.swing.GroupLayout.Alignment.LEADING)
+                                                .addGroup(layout.createSequentialGroup()
+                                                        .addComponent(jButton3)
+                                                        .addPreferredGap(
+                                                                javax.swing.LayoutStyle.ComponentPlacement.RELATED,
+                                                                javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                                        .addComponent(jButton2))
+                                                .addComponent(jScrollPane2, javax.swing.GroupLayout.Alignment.LEADING,
+                                                        javax.swing.GroupLayout.DEFAULT_SIZE, 366, Short.MAX_VALUE))
+                                        .addComponent(jLabel1, javax.swing.GroupLayout.PREFERRED_SIZE, 266,
+                                                javax.swing.GroupLayout.PREFERRED_SIZE))
+                                .addContainerGap(14, Short.MAX_VALUE)));
         layout.setVerticalGroup(
-            layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addGroup(layout.createSequentialGroup()
-                .addComponent(jLabel1)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                    .addComponent(jTextField1, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addComponent(jLabel2))
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addComponent(jLabel3)
-                    .addComponent(jTextField2, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
-                .addGap(9, 9, 9)
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                    .addComponent(jLabel4)
-                    .addComponent(jButton1))
-                .addGap(4, 4, 4)
-                .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 122, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addComponent(jLabel5)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addComponent(jScrollPane2, javax.swing.GroupLayout.PREFERRED_SIZE, 58, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                    .addComponent(jButton2)
-                    .addComponent(jButton3))
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
-                .addComponent(jLabel6)
-                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                .addComponent(jScrollPane3, javax.swing.GroupLayout.PREFERRED_SIZE, 50, javax.swing.GroupLayout.PREFERRED_SIZE)
-                .addContainerGap(15, Short.MAX_VALUE))
-        );
+                layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                        .addGroup(layout.createSequentialGroup()
+                                .addComponent(jLabel1)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                                        .addComponent(jTextField1, javax.swing.GroupLayout.PREFERRED_SIZE,
+                                                javax.swing.GroupLayout.DEFAULT_SIZE,
+                                                javax.swing.GroupLayout.PREFERRED_SIZE)
+                                        .addComponent(jLabel2))
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                                        .addComponent(jLabel3)
+                                        .addComponent(jTextField2, javax.swing.GroupLayout.PREFERRED_SIZE,
+                                                javax.swing.GroupLayout.DEFAULT_SIZE,
+                                                javax.swing.GroupLayout.PREFERRED_SIZE))
+                                .addGap(9, 9, 9)
+                                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                                        .addComponent(jLabel4)
+                                        .addComponent(jButton1))
+                                .addGap(4, 4, 4)
+                                .addComponent(jScrollPane1, javax.swing.GroupLayout.PREFERRED_SIZE, 122,
+                                        javax.swing.GroupLayout.PREFERRED_SIZE)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                .addComponent(jLabel5)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                .addComponent(jScrollPane2, javax.swing.GroupLayout.PREFERRED_SIZE, 58,
+                                        javax.swing.GroupLayout.PREFERRED_SIZE)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                .addGroup(layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                                        .addComponent(jButton2)
+                                        .addComponent(jButton3))
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
+                                .addComponent(jLabel6)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                .addComponent(jScrollPane3, javax.swing.GroupLayout.PREFERRED_SIZE, 50,
+                                        javax.swing.GroupLayout.PREFERRED_SIZE)
+                                .addContainerGap(15, Short.MAX_VALUE)));
 
         pack();
     }// </editor-fold>//GEN-END:initComponents
 
-    private void jButton3ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton3ActionPerformed
+    private void jButton3ActionPerformed(java.awt.event.ActionEvent evt) {// GEN-FIRST:event_jButton3ActionPerformed
         JsonMaker dialog = new JsonMaker(this, false);
         dialog.setVisible(true);
         dialog.setMainFrame(this);
-    }//GEN-LAST:event_jButton3ActionPerformed
+    }// GEN-LAST:event_jButton3ActionPerformed
 
-    private void jButton1ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton1ActionPerformed
+    private void jButton1ActionPerformed(java.awt.event.ActionEvent evt) {// GEN-FIRST:event_jButton1ActionPerformed
         this.connectToServer();
-    }//GEN-LAST:event_jButton1ActionPerformed
+    }// GEN-LAST:event_jButton1ActionPerformed
 
-    private void jButton2ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jButton2ActionPerformed
+    private void jButton2ActionPerformed(java.awt.event.ActionEvent evt) {// GEN-FIRST:event_jButton2ActionPerformed
         try {
             this.sendMassageWithSocket(this.jTextArea2.getText());
         } catch (IOException ex) {
@@ -539,51 +678,51 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener{
             Logger.getLogger(mainFrame.class.getName()).log(Level.SEVERE, null, ex);
         }
         this.jTextArea2.setText("");
-    }//GEN-LAST:event_jButton2ActionPerformed
+    }// GEN-LAST:event_jButton2ActionPerformed
 
     /** サブウインドウからの変更要求 */
-    public void setSendText(String message){
+    public void setSendText(String message) {
         this.jTextArea2.setText(message);
     }
-    
-    private int getCardID(String command){
+
+    private int getCardID(String command) {
         int cardID = -1;
-        if(command.equals("Player0_Card1")){
+        if (command.equals("Player0_Card1")) {
             cardID = 0;
-        } else if(command.equals("Player0_Card2")){
+        } else if (command.equals("Player0_Card2")) {
             cardID = 1;
-        } else if(command.equals("Player0_Card3")){
+        } else if (command.equals("Player0_Card3")) {
             cardID = 2;
-        } else if(command.equals("Player0_Card4")){
+        } else if (command.equals("Player0_Card4")) {
             cardID = 3;
-        } else if(command.equals("Player0_Card5")){
+        } else if (command.equals("Player0_Card5")) {
             cardID = 4;
         }
-        if(command.equals("Player1_Card1")){
+        if (command.equals("Player1_Card1")) {
             cardID = 0;
-        } else if(command.equals("Player1_Card2")){
+        } else if (command.equals("Player1_Card2")) {
             cardID = 1;
-        } else if(command.equals("Player1_Card3")){
+        } else if (command.equals("Player1_Card3")) {
             cardID = 2;
-        } else if(command.equals("Player1_Card4")){
+        } else if (command.equals("Player1_Card4")) {
             cardID = 3;
-        } else if(command.equals("Player1_Card5")){
+        } else if (command.equals("Player1_Card5")) {
             cardID = 4;
         }
         return cardID;
     }
-    
+
     /** GUIからのrequest処理 */
     @Override
     public void actionPerformed(ActionEvent e) {
         int type_id = e.getID();
         String command = e.getActionCommand();
         int cardID = -1;
-        switch(type_id){
+        switch (type_id) {
             case 0:
-                //前進ボタン
+                // 前進ボタン
                 cardID = getCardID(command);
-                if(cardID != -1){
+                if (cardID != -1) {
                     try {
                         int cardNum = this.myCardList.get(cardID);
                         this.sendForwardMessage(cardNum);
@@ -595,9 +734,9 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener{
                 }
                 break;
             case 1:
-                //後退ボタン
+                // 後退ボタン
                 cardID = getCardID(command);
-                if(cardID != -1){
+                if (cardID != -1) {
                     try {
                         int cardNum = this.myCardList.get(cardID);
                         this.sendBackwardMessage(cardNum);
@@ -609,28 +748,28 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener{
                 }
                 break;
             case 2:
-                //攻撃ボタン
-                ArrayList<String> selectedList = (ArrayList<String>)e.getSource();
+                // 攻撃ボタン
+                ArrayList<String> selectedList = (ArrayList<String>) e.getSource();
                 int cardNum = -1;
                 int cardCount = 0;
-                for(String cmd:selectedList){
+                for (String cmd : selectedList) {
                     cardID = getCardID(cmd);
                     int num = this.myCardList.get(cardID);
-                    if(cardNum == -1){
+                    if (cardNum == -1) {
                         cardNum = num;
                         cardCount = 1;
-                    } else if(cardNum == num){
+                    } else if (cardNum == num) {
                         cardCount++;
                     }
                 }
                 try {
-                    this.sendAttackMessage(cardNum,cardCount);
+                    this.sendAttackMessage(cardNum, cardCount);
                 } catch (IOException ex) {
                     Logger.getLogger(mainFrame.class.getName()).log(Level.SEVERE, null, ex);
                 } catch (InterruptedException ex) {
                     Logger.getLogger(mainFrame.class.getName()).log(Level.SEVERE, null, ex);
                 }
-                
+
                 break;
         }
     }
@@ -655,56 +794,59 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener{
     private javax.swing.JTextField jTextField2;
     // End of variables declaration//GEN-END:variables
 
-
 }
 
 class MessageReceiver extends Thread {
     private mainFrame parent;
     private BufferedReader serverReader;
     private StringBuilder sbuf;
-    
-//    public static Pattern jsonStartEnd = Pattern.compile(".*?<json>(.*)</json>.*?");
-//    public static Pattern jsonEnd = Pattern.compile("(.*)</json>.*?");
-//    public static Pattern jsonStart = Pattern.compile(".*?<json>(.*)");
+
+    // public static Pattern jsonStartEnd =
+    // Pattern.compile(".*?<json>(.*)</json>.*?");
+    // public static Pattern jsonEnd = Pattern.compile("(.*)</json>.*?");
+    // public static Pattern jsonStart = Pattern.compile(".*?<json>(.*)");
     public static Pattern jsonStartEnd = Pattern.compile(".*?\\{(.*)\\}.*?");
     public static Pattern jsonEnd = Pattern.compile("(.*)\\}.*?");
     public static Pattern jsonStart = Pattern.compile(".*?\\{(.*)");
-    public MessageReceiver(mainFrame p){
+
+    public MessageReceiver(mainFrame p) {
         this.parent = p;
         this.serverReader = this.parent.getServerReader();
         this.sbuf = new StringBuilder();
     }
-    
+
     @Override
-    public void run(){
+    public void run() {
         try {
             String line;
-            while((line = this.serverReader.readLine()) != null){
+            while ((line = this.serverReader.readLine()) != null) {
                 Matcher startend = jsonStartEnd.matcher(line);
                 Matcher end = jsonEnd.matcher(line);
                 Matcher start = jsonStart.matcher(line);
-                if(startend.matches()){
+                if (startend.matches()) {
                     sbuf = new StringBuilder();
                     sbuf.append("{");
                     sbuf.append(startend.group(1));
                     sbuf.append("}{");
                     this.parent.receiveMessageFromServer(sbuf.toString());
-                } else if(end.matches()){
+
+                } else if (end.matches()) {
                     sbuf.append(end.group(1));
                     sbuf.append("}{");
                     this.parent.receiveMessageFromServer(sbuf.toString());
-                } else if(start.matches()){
+
+                } else if (start.matches()) {
                     sbuf = new StringBuilder();
                     sbuf.append("{");
                     sbuf.append(start.group(1));
+
                 } else {
                     sbuf.append(line);
+
                 }
             }
         } catch (IOException ex) {
         }
     }
-    
-    
-}
 
+}
