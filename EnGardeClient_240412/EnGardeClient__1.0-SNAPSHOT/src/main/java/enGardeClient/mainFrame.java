@@ -17,6 +17,8 @@ import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.logging.Level;
@@ -42,21 +44,27 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
      * rule:ゲーム進行のルールについて。
      */
     private int my_attackdirection; // 0->1スタート、1->23スタート.
-    private List<Integer> my_hand = new ArrayList<>();; // 手札.
-    private int my_matchcard[] = new int[2]; // 勝負するカード候補、2個まで.
-    private int my_actioncard[] = new int[2]; // 出すカード、0:数字、1:方向0->F,1->B
+    private int my_hand[] = new int[5]; // 手札,1がn枚2がm枚・・・.
+    private int my_matchcard[] = new int[2]; // 攻撃するカード候補、2個まで.
+    private int my_matchnum; // 攻撃するカードの枚数の閾値.
+    private int my_actioncard; // 出すカード(数字).
+    private int my_actionid; // 101->移動、102->攻撃、103->パリー.
+    private boolean my_movement; // F->Forward,T->Back.
     private int my_position; // 自身の現在地.
 
-    private int your_matchcard[] = new int[2]; // 相手が勝負するカードの推測、2個まで.
-    private int your_position; // 相手のの現在地.
+    private int your_position; // 相手の現在地.
+    private int your_matchcard[] = new int[2]; // 相手が攻撃するカードの推測、2個まで.
+    private List<Integer> your_matchnumlog = new ArrayList<>(); // 相手が攻撃してきた枚数の履歴
+    private int your_matchnum; // 相手が攻撃してきた枚数の平均.
+    private int your_matchmin; // 相手が攻撃してきた枚数の最小値.
 
-    
     private int rule_deck; // デッキの残りカード.
     private int rule_distance; // 相手との距離.
-    private int rule_cemetery[] = new int[25]; // 使用済みカード、墓地.
-    private boolean rule_issue[] = new boolean[100]; // 勝敗履歴.
-    private int rule_win; // 勝ち数.
-    private int rule_lose; // 負け数.
+    private int rule_cemetery[] = new int[5]; // 使用済みカード、墓地、0番目->1の使用済み枚数.
+    private List<Boolean> rule_issue = new ArrayList<>(Arrays.asList(true, false)); // 勝敗履歴 1->勝ち.
+    private int rule_roundcount = 0; // 何試合目？.
+    private int rule_win = 0; // 勝ち数.
+    private int rule_lose = 0; // 負け数.
 
     // 追加変数宣言おわり.
     private String serverAddress;
@@ -78,36 +86,206 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
     private void get_BoardInfo(HashMap<String, String> data) {
         my_position = Integer.parseInt(data.get("PlayerPosition_0"));
         your_position = Integer.parseInt(data.get("PlayerPosition_1"));
-        rule_distance = Math.abs(my_position-your_position);
+        rule_distance = Math.abs(my_position - your_position);
         rule_deck = Integer.parseInt(data.get("NumofDeck"));
+        System.out.println("get_BoardInfo");
+        System.out.println(my_position + " , " + your_position + " , " + rule_distance + " , " + rule_deck);
     }
 
     /** HandInfoからデータを取得 */
     private void get_HandInfo(HashMap<String, String> data) {
-        my_hand.clear();
+        ArrayList<Integer> list = new ArrayList<>();
         String[] keys = { "Hand1", "Hand2", "Hand3", "Hand4", "Hand5" };
         for (String key : keys) {
             if (data.containsKey(key)) {
-                this.my_hand.add(Integer.parseInt(data.get(key)));
+                list.add(Integer.parseInt(data.get(key)));
             }
         }
-        
-
+        // list->配列.
+        // 配列のリセット.
+        for (int i = 0; i < 5; i++) {
+            my_hand[i] = 0;
+        }
+        // 1がn枚2がm枚の配列に.
+        for (int i = 0; i < 5; i++) {
+            if (list.get(i) == 1) {
+                my_hand[0] = my_hand[0] + 1;
+            } else if (list.get(i) == 2) {
+                my_hand[1] = my_hand[1] + 1;
+            } else if (list.get(i) == 3) {
+                my_hand[2] = my_hand[2] + 1;
+            } else if (list.get(i) == 4) {
+                my_hand[3] = my_hand[3] + 1;
+            } else if (list.get(i) == 5) {
+                my_hand[4] = my_hand[4] + 1;
+            }
+        }
+        System.out.println("get_HandInfo");
+        System.out.println(my_hand[0] + " , " + my_hand[1] + " , " + my_hand[2] + " , " + my_hand[3] + " , "
+                + my_hand[4]);
     }
 
+    /** DoPlayからデータを取得 */
+    private void get_DoPlay(HashMap<String, String> data) {
+        if (Integer.parseInt(data.get("MessageID")) == 101) {
+
+        } else if (Integer.parseInt(data.get("MessageID")) == 102) {
+
+        }
+    }
+
+    /**
+     * RoundEndからデータを取得
+     * 試合結果から学習
+     */
     private void get_RoundEnd(HashMap<String, String> data) {
+        rule_roundcount = rule_roundcount + 1;
+        rule_issue.add(Boolean.parseBoolean(data.get("Winner")));
+        if (my_attackdirection == 0) {
+            rule_win = Integer.parseInt(data.get("Score0"));
+            rule_lose = Integer.parseInt(data.get("Score1"));
+        } else if (my_attackdirection == 1) {
+            rule_win = Integer.parseInt(data.get("Score1"));
+            rule_lose = Integer.parseInt(data.get("Score0"));
+        }
 
     }
-    
+
     private void get_GameEnd(HashMap<String, String> data) {
 
     }
-    private void algorithm_player0() {
 
+    private void algorithm_player0() {
+        // 大きい順に出す.
+        // 評価値送信.
+        /*
+         * while (true) {
+         * try {
+         * sendEvaluateMessage();
+         * System.out.println("sendEvaluateMessage");
+         * break;
+         * } catch (IOException | InterruptedException e) {
+         * System.out.println("Error:sendEvaluateMessage");
+         * }
+         * }
+         */
+
+        boolean canForwardorAttack = false; // 前進か攻撃できるか？.
+        for (int i = 4; i >= 0; i--) {
+            if (my_hand[i] != 0) {
+                if (i + 1 == rule_distance) {
+                    // 攻撃
+                    my_actioncard = i + 1;
+                    my_actionid = 102;
+                    System.out.println("attack:" + my_actioncard);
+                    canForwardorAttack = true;
+                    break;
+                } else if (i + 1 < rule_distance) {
+                    // 前進.
+                    my_actioncard = i + 1;
+                    my_actionid = 101;
+                    my_movement = false;
+                    System.out.println("movement:" + my_actioncard);
+                    canForwardorAttack = true;
+                    break;
+                } else {
+                    System.out.println("miss:" + i);
+                }
+            }
+        }
+        if (canForwardorAttack == false) {
+            for (int i = 0; i < 5; i++) {
+                if (my_hand[i] != 0) {
+                    // 後退.
+                    my_actioncard = i + 1;
+                    my_actionid = 101;
+                    my_movement = true;
+                    System.out.println("movement:" + my_actioncard);
+                    break;
+                }
+            }
+        }
     }
 
     private void algorithm_player1() {
+        // 大きい順に出す
+        // 評価値送信.
+        /*
+         * while (true) {
+         * try {
+         * sendEvaluateMessage();
+         * System.out.println("sendEvaluateMessage");
+         * break;
+         * } catch (IOException | InterruptedException e) {
+         * System.out.println("Error:sendEvaluateMessage");
+         * }
+         * }
+         */
+        boolean canForwardorAttack=false; //前進か攻撃できるか？.
+        for (int i = 4; i >= 0; i--) {
+            if(my_hand[i] != 0){
+                if (i + 1 == rule_distance) {
+                    // 攻撃
+                    my_actioncard = i + 1;
+                    my_actionid = 102;
+                    System.out.println("attack:" + my_actioncard);
+                    canForwardorAttack=true;
+                    break;
+                } else if (i + 1 < rule_distance) {
+                    // 前進.
+                    my_actioncard = i + 1;
+                    my_actionid = 101;
+                    my_movement = false;
+                    System.out.println("movement:" + my_actioncard);
+                    canForwardorAttack = true;
+                    break;
+                } else {
+                    System.out.println("miss:" + i);
+                }
+            }
+        }
+        if (canForwardorAttack==false) {
+            for (int i = 0; i < 5; i++) {
+                if (my_hand[i] != 0) {
+                    // 後退.
+                    my_actioncard = i + 1;
+                    my_actionid = 101;
+                    my_movement = true;
+                    System.out.println("movement:" + my_actioncard);
+                    break;
+                }
+            }
+        }
+    }
 
+    private void send_Play() {
+        if (my_actionid == 101) {
+            if (my_movement == true) {
+                // 後退.
+                try {
+                    sendBackwardMessage(my_actioncard);
+                    System.out.println("sendBackwardMessage");
+                } catch (IOException | InterruptedException e) {
+                    System.out.println("Error:sendBackwardMessage");
+                }
+            } else if (my_movement == false) {
+                // 前進.
+                try {
+                    sendForwardMessage(my_actioncard);
+                    System.out.println("sendForwardMessage");
+                } catch (IOException | InterruptedException e) {
+                    System.out.println("Error:sendForwardMessage");
+                }
+            }
+
+        } else if (my_actionid == 102) {
+            try {
+                sendAttackMessage(my_actioncard, my_hand[my_actioncard - 1]);
+                System.out.println("sendAttackMessage");
+            } catch (IOException | InterruptedException e) {
+                System.out.println("Error:sendAttackMessage");
+            }
+        }
     }
     // 追加メソッド終了.
 
@@ -258,18 +436,24 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
                     break;
                 case "DoPlay":
                     // プレイヤーのターンが来たことを知らせる.
-                    if(my_attackdirection==0){
+                    get_DoPlay(data);
+                    if (my_attackdirection == 0) {
                         algorithm_player0();
-                    }else if(my_attackdirection == 1){
+                    } else if (my_attackdirection == 1) {
                         algorithm_player1();
                     }
                     break;
                 case "RoundEnd":
                     // ラウンド終了.
-                    
+                    get_RoundEnd(data);
                     break;
                 case "GameEnd":
+                    get_GameEnd(data);
                     break;
+                case "Accept":
+                    if (Integer.parseInt(data.get("MessageID")) == 200) {
+                        send_Play();
+                    }
                 default:
             }
         } catch (IOException ex) {
