@@ -88,8 +88,15 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
         your_position = Integer.parseInt(data.get("PlayerPosition_1"));
         rule_distance = Math.abs(my_position - your_position);
         rule_deck = Integer.parseInt(data.get("NumofDeck"));
+
+        System.out.println("\n" + "\n" + (15 - rule_deck) + "turn");
         System.out.println("get_BoardInfo");
-        System.out.println(my_position + " , " + your_position + " , " + rule_distance + " , " + rule_deck);
+        System.out.println("my_position:" + my_position + " , " + "your_position:" + your_position);
+        System.out.println("print_cemetery");
+        for (int i = 0; i < 5; i++) {
+            System.out.print((i + 1) + ":" + rule_cemetery[i] + " ");
+        }
+        System.out.println();
     }
 
     /** HandInfoからデータを取得 */
@@ -148,10 +155,29 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
             rule_win = Integer.parseInt(data.get("Score1"));
             rule_lose = Integer.parseInt(data.get("Score0"));
         }
+        // 墓地リセット.
+        for (int i = 0; i < 5; i++) {
+            rule_cemetery[i] = 0;
+        }
 
     }
 
     private void get_GameEnd(HashMap<String, String> data) {
+
+    }
+
+    /** Playedからデータを取得 */
+    private void get_Played(HashMap<String, String> data) {
+        // 墓地実装.
+        System.out.println("rule_cemetery");
+        if (Integer.parseInt(data.get("MessageID")) == 102) {
+            rule_cemetery[Integer.parseInt(data.get("PlayCard"))
+                    - 1] = rule_cemetery[Integer.parseInt(data.get("PlayCard")) - 1]
+                            + Integer.parseInt(data.get("NumOfCard")) * 2;
+        } else if (Integer.parseInt(data.get("MessageID")) == 101) {
+            rule_cemetery[Integer.parseInt(data.get("PlayCard"))
+                    - 1] = rule_cemetery[Integer.parseInt(data.get("PlayCard")) - 1] + 1;
+        }
 
     }
 
@@ -264,7 +290,9 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
                 // 後退.
                 try {
                     sendBackwardMessage(my_actioncard);
-                    System.out.println("sendBackwardMessage"+ my_actioncard);
+                    System.out.println("sendBackwardMessage" + my_actioncard);
+                    // 墓地.
+                    rule_cemetery[my_actioncard - 1] = rule_cemetery[my_actioncard - 1] + 1;
                 } catch (IOException | InterruptedException e) {
                     System.out.println("Error:sendBackwardMessage");
                 }
@@ -272,7 +300,9 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
                 // 前進.
                 try {
                     sendForwardMessage(my_actioncard);
-                    System.out.println("sendForwardMessage"+ my_actioncard);
+                    System.out.println("sendForwardMessage" + my_actioncard);
+                    // 墓地.
+                    rule_cemetery[my_actioncard - 1] = rule_cemetery[my_actioncard - 1] + 1;
                 } catch (IOException | InterruptedException e) {
                     System.out.println("Error:sendForwardMessage");
                 }
@@ -282,11 +312,13 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
             try {
                 sendAttackMessage(my_actioncard, my_hand[my_actioncard - 1]);
                 System.out.println("sendAttackMessage" + my_actioncard + "," + my_hand[my_actioncard - 1]);
+                // 墓地.
+                rule_cemetery[my_actioncard - 1] = rule_cemetery[my_actioncard - 1] + my_hand[my_actioncard - 1] * 2;
             } catch (IOException | InterruptedException e) {
                 System.out.println("Error:sendAttackMessage");
             }
-        }else{
-            
+        } else {
+
         }
     }
     // 追加メソッド終了.
@@ -456,6 +488,8 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
                     if (Integer.parseInt(data.get("MessageID")) == 200) {
                         send_Play();
                     }
+                case "Played":
+                    get_Played(data);
                 default:
             }
         } catch (IOException ex) {
