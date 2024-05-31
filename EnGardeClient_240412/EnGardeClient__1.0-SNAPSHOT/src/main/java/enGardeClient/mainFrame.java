@@ -107,7 +107,7 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
             my_hand[i] = 0;
         }
         // 1がn枚2がm枚の配列に.
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < list.size(); i++) {
             if (list.get(i) == 1) {
                 my_hand[0] = my_hand[0] + 1;
             } else if (list.get(i) == 2) {
@@ -221,15 +221,15 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
          * }
          * }
          */
-        boolean canForwardorAttack=false; //前進か攻撃できるか？.
+        boolean canForwardorAttack = false; // 前進か攻撃できるか？.
         for (int i = 4; i >= 0; i--) {
-            if(my_hand[i] != 0){
+            if (my_hand[i] != 0) {
                 if (i + 1 == rule_distance) {
                     // 攻撃
                     my_actioncard = i + 1;
                     my_actionid = 102;
                     System.out.println("attack:" + my_actioncard);
-                    canForwardorAttack=true;
+                    canForwardorAttack = true;
                     break;
                 } else if (i + 1 < rule_distance) {
                     // 前進.
@@ -244,7 +244,7 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
                 }
             }
         }
-        if (canForwardorAttack==false) {
+        if (canForwardorAttack == false) {
             for (int i = 0; i < 5; i++) {
                 if (my_hand[i] != 0) {
                     // 後退.
@@ -264,7 +264,7 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
                 // 後退.
                 try {
                     sendBackwardMessage(my_actioncard);
-                    System.out.println("sendBackwardMessage");
+                    System.out.println("sendBackwardMessage"+ my_actioncard);
                 } catch (IOException | InterruptedException e) {
                     System.out.println("Error:sendBackwardMessage");
                 }
@@ -272,7 +272,7 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
                 // 前進.
                 try {
                     sendForwardMessage(my_actioncard);
-                    System.out.println("sendForwardMessage");
+                    System.out.println("sendForwardMessage"+ my_actioncard);
                 } catch (IOException | InterruptedException e) {
                     System.out.println("Error:sendForwardMessage");
                 }
@@ -281,10 +281,12 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
         } else if (my_actionid == 102) {
             try {
                 sendAttackMessage(my_actioncard, my_hand[my_actioncard - 1]);
-                System.out.println("sendAttackMessage");
+                System.out.println("sendAttackMessage" + my_actioncard + "," + my_hand[my_actioncard - 1]);
             } catch (IOException | InterruptedException e) {
                 System.out.println("Error:sendAttackMessage");
             }
+        }else{
+            
         }
     }
     // 追加メソッド終了.
