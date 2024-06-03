@@ -55,7 +55,7 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
     private int your_position; // 相手の現在地.
     private int your_matchcard[] = new int[2]; // 相手が攻撃するカードの推測、2個まで.
     private List<Integer> your_matchnumlog = new ArrayList<>(); // 相手が攻撃してきた枚数の履歴
-    private int your_matchnum; // 相手が攻撃してきた枚数の平均.
+    private double your_matchaverage; // 相手が攻撃してきた枚数の平均.
     private int your_matchmin; // 相手が攻撃してきた枚数の最小値.
 
     private int rule_deck; // デッキの残りカード.
@@ -159,7 +159,8 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
         for (int i = 0; i < 5; i++) {
             rule_cemetery[i] = 0;
         }
-
+        System.out.println("\n" + rule_roundcount + "end");
+        System.out.println("average : " + your_matchaverage);
     }
 
     private void get_GameEnd(HashMap<String, String> data) {
@@ -174,6 +175,14 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
             rule_cemetery[Integer.parseInt(data.get("PlayCard"))
                     - 1] = rule_cemetery[Integer.parseInt(data.get("PlayCard")) - 1]
                             + Integer.parseInt(data.get("NumOfCard")) * 2;
+            your_matchnumlog.add(Integer.parseInt(data.get("NumOfCard"))); // 攻撃枚数履歴追加.
+            your_matchmin = Collections.min(your_matchnumlog);
+            // 平均計算.
+            double sum = 0;
+            for (int i = 0; i < your_matchnumlog.size(); i++) {
+                sum = sum + your_matchnumlog.get(i);
+            }
+            your_matchaverage = sum / your_matchnumlog.size();
         } else if (Integer.parseInt(data.get("MessageID")) == 101) {
             rule_cemetery[Integer.parseInt(data.get("PlayCard"))
                     - 1] = rule_cemetery[Integer.parseInt(data.get("PlayCard")) - 1] + 1;
@@ -199,7 +208,7 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
         boolean canForwardorAttack = false; // 前進か攻撃できるか？.
         for (int i = 4; i >= 0; i--) {
             if (my_hand[i] != 0) {
-                if (i + 1 == rule_distance) {
+                if (i + 1 == rule_distance && my_hand[i] >= your_matchaverage) {
                     // 攻撃
                     my_actioncard = i + 1;
                     my_actionid = 102;
@@ -290,7 +299,7 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
                 // 後退.
                 try {
                     sendBackwardMessage(my_actioncard);
-                    System.out.println("sendBackwardMessage" + my_actioncard);
+                    System.out.println("Back : " + my_actioncard);
                     // 墓地.
                     rule_cemetery[my_actioncard - 1] = rule_cemetery[my_actioncard - 1] + 1;
                 } catch (IOException | InterruptedException e) {
@@ -300,7 +309,7 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
                 // 前進.
                 try {
                     sendForwardMessage(my_actioncard);
-                    System.out.println("sendForwardMessage" + my_actioncard);
+                    System.out.println("Forward : " + my_actioncard);
                     // 墓地.
                     rule_cemetery[my_actioncard - 1] = rule_cemetery[my_actioncard - 1] + 1;
                 } catch (IOException | InterruptedException e) {
@@ -311,7 +320,7 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
         } else if (my_actionid == 102) {
             try {
                 sendAttackMessage(my_actioncard, my_hand[my_actioncard - 1]);
-                System.out.println("sendAttackMessage" + my_actioncard + "," + my_hand[my_actioncard - 1]);
+                System.out.println("Attack : " + my_actioncard + "," + my_hand[my_actioncard - 1]);
                 // 墓地.
                 rule_cemetery[my_actioncard - 1] = rule_cemetery[my_actioncard - 1] + my_hand[my_actioncard - 1] * 2;
             } catch (IOException | InterruptedException e) {
@@ -320,6 +329,52 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
         } else {
 
         }
+    }
+
+    /** エラー処理 */
+    private void error_processing(HashMap<String, String> data) {
+        String type = data.get("MessageID");
+        switch (type) {
+            case "404":
+                boolean canForwardorAttack = false; // 前進か攻撃できるか？.
+                for (int i = 4; i >= 0; i--) {
+                    if (my_hand[i] != 0) {
+                        if (i + 1 == rule_distance) {
+                            // 攻撃
+                            my_actioncard = i + 1;
+                            my_actionid = 102;
+                            System.out.println("attack:" + my_actioncard);
+                            canForwardorAttack = true;
+                            break;
+                        } else if (i + 1 < rule_distance) {
+                            // 前進.
+                            my_actioncard = i + 1;
+                            my_actionid = 101;
+                            my_movement = false;
+                            System.out.println("movement:" + my_actioncard);
+                            canForwardorAttack = true;
+                            break;
+                        } else {
+                            System.out.println("miss:" + i);
+                        }
+                    }
+                }
+                if (canForwardorAttack == false) {
+                    for (int i = 0; i < 5; i++) {
+                        if (my_hand[i] != 0) {
+                            // 後退.
+                            my_actioncard = i + 1;
+                            my_actionid = 101;
+                            my_movement = true;
+                            System.out.println("movement:" + my_actioncard);
+                            break;
+                        }
+                    }
+                }
+                break;
+            default:
+        }
+
     }
     // 追加メソッド終了.
 
@@ -488,8 +543,13 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
                     if (Integer.parseInt(data.get("MessageID")) == 200) {
                         send_Play();
                     }
+                    break;
                 case "Played":
                     get_Played(data);
+                    break;
+                case "Error":
+                    error_processing(data);
+                    break;
                 default:
             }
         } catch (IOException ex) {
