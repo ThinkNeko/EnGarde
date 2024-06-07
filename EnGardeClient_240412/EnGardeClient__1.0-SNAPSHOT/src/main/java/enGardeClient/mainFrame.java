@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
@@ -43,6 +44,7 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
      * my or your:自分の情報か相手の情報かを明示。
      * rule:ゲーム進行のルールについて。
      */
+    private int my_plan; // 作戦選択;
     private int my_attackdirection; // 0->1スタート、1->23スタート.
     private int my_hand[] = new int[5]; // 手札,1がn枚2がm枚・・・.
     private int my_matchcard[] = new int[2]; // 攻撃するカード候補、2個まで.
@@ -59,8 +61,10 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
     private int your_matchmin; // 相手が攻撃してきた枚数の最小値.
 
     private int rule_deck; // デッキの残りカード.
+    private int rule_turn; // 何ターン目,1ターン目スタート.
     private int rule_distance; // 相手との距離.
     private int rule_cemetery[] = new int[5]; // 使用済みカード、墓地、0番目->1の使用済み枚数.
+    private int rule_remain[] = new int[5]; // 残りカード.
     private List<Boolean> rule_issue = new ArrayList<>(Arrays.asList(true, false)); // 勝敗履歴 1->勝ち.
     private int rule_roundcount = 0; // 何試合目？.
     private int rule_win = 0; // 勝ち数.
@@ -88,8 +92,9 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
         your_position = Integer.parseInt(data.get("PlayerPosition_1"));
         rule_distance = Math.abs(my_position - your_position);
         rule_deck = Integer.parseInt(data.get("NumofDeck"));
+        rule_turn = 16 - rule_deck;
 
-        System.out.println("\n" + "\n" + (15 - rule_deck) + "turn");
+        System.out.println("\n" + "\n" + (rule_turn) + "turn");
         System.out.println("get_BoardInfo");
         System.out.println("my_position:" + my_position + " , " + "your_position:" + your_position);
         System.out.println("print_cemetery");
@@ -170,7 +175,6 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
     /** Playedからデータを取得 */
     private void get_Played(HashMap<String, String> data) {
         // 墓地実装.
-        System.out.println("rule_cemetery");
         if (Integer.parseInt(data.get("MessageID")) == 102) {
             rule_cemetery[Integer.parseInt(data.get("PlayCard"))
                     - 1] = rule_cemetery[Integer.parseInt(data.get("PlayCard")) - 1]
@@ -186,6 +190,9 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
         } else if (Integer.parseInt(data.get("MessageID")) == 101) {
             rule_cemetery[Integer.parseInt(data.get("PlayCard"))
                     - 1] = rule_cemetery[Integer.parseInt(data.get("PlayCard")) - 1] + 1;
+        }
+        for (int i = 0; i < 4; i++) {
+            rule_remain[i] = 5 - rule_cemetery[i];
         }
 
     }
@@ -205,41 +212,109 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
          * }
          */
 
-        boolean canForwardorAttack = false; // 前進か攻撃できるか？.
-        for (int i = 4; i >= 0; i--) {
-            if (my_hand[i] != 0) {
-                if (i + 1 == rule_distance && my_hand[i] >= your_matchaverage) {
-                    // 攻撃
-                    my_actioncard = i + 1;
-                    my_actionid = 102;
-                    System.out.println("attack:" + my_actioncard);
-                    canForwardorAttack = true;
-                    break;
-                } else if (i + 1 < rule_distance) {
-                    // 前進.
-                    my_actioncard = i + 1;
-                    my_actionid = 101;
-                    my_movement = false;
-                    System.out.println("movement:" + my_actioncard);
-                    canForwardorAttack = true;
-                    break;
-                } else {
-                    System.out.println("miss:" + i);
-                }
+        // 作戦決定.
+        // 4ターン目(自分が2回行動する)までに作戦決定する.
+        if (rule_turn <= 2) {
+            // 一回目はとりあえず最大値前進.
+            my_plan = 1;
+        } else if (rule_turn <= 4) {
+            if ((my_position >= 5 && my_hand[3] + my_hand[4] >= 1) || my_hand[3] + my_hand[4] >= 2) {
+                /*
+                 * 序盤で中央まで近づく.
+                 * 
+                 */
+                my_plan = 1;
+            } else {
+                /*
+                 * 序盤に進めれない.
+                 * 
+                 */
+                my_plan = 2;
             }
         }
-        if (canForwardorAttack == false) {
-            for (int i = 0; i < 5; i++) {
+        System.out.println("plan:" + my_plan);
+
+        // 勝負するカード決定.
+        Map<Integer, Integer> map = new HashMap<>();
+        map.put(0, my_hand[0]);
+        map.put(1, my_hand[1]);
+        map.put(2, my_hand[2]);
+        map.put(3, my_hand[3]);
+        map.put(4, my_hand[4]);
+        List<Map.Entry<Integer, Integer>> list = new ArrayList<>(map.entrySet());
+        list.sort((entry1, entry2) -> entry2.getValue().compareTo(entry1.getValue()));
+        my_matchcard[0] = list.get(0).getKey(); // 第1候補.
+        my_matchcard[1] = list.get(1).getKey(); // 第2候補.
+        System.out.println("my_matchcard : " + (my_matchcard[0] + 1) + " or " + (my_matchcard[1] + 1));
+
+        // 相手の勝負するカードの推定.
+        Map<Integer, Integer> map1 = new HashMap<>();
+        map1.put(0, rule_remain[0]);
+        map1.put(1, rule_remain[1]);
+        map1.put(2, rule_remain[2]);
+        map1.put(3, rule_remain[3]);
+        map1.put(4, rule_remain[4]);
+        List<Map.Entry<Integer, Integer>> list1 = new ArrayList<>(map1.entrySet());
+        list1.sort((entry1, entry2) -> entry2.getValue().compareTo(entry1.getValue()));
+        your_matchcard[0] = list1.get(0).getKey(); // 第1候補.
+        your_matchcard[1] = list1.get(1).getKey(); // 第2候補.
+        System.out.println("your_matchcard : " + (your_matchcard[0] + 1) + " or " + (your_matchcard[1] + 1));
+
+        if (my_plan == 0) {
+
+        } else if (my_plan == 1 || my_plan == 2) {
+            boolean canForwardorAttack = false; // 前進か攻撃できるか？.
+            for (int i = 4; i >= 0; i--) {
                 if (my_hand[i] != 0) {
-                    // 後退.
-                    my_actioncard = i + 1;
-                    my_actionid = 101;
-                    my_movement = true;
-                    System.out.println("movement:" + my_actioncard);
-                    break;
+                    if (i + 1 == rule_distance) {
+                        if (((i == my_matchcard[0] || i == my_matchcard[1])
+                                && (my_hand[i] >= your_matchaverage))
+                                || my_hand[0] + my_hand[1] + my_hand[2]
+                                        + my_hand[3] + my_hand[4] != 5) {
+                            // 攻撃
+                            my_actioncard = i + 1;
+                            my_actionid = 102;
+                            System.out.println("attack:" + my_actioncard);
+                            canForwardorAttack = true;
+
+                            break;
+                        }
+                    } else if (i + 1 < rule_distance) {
+                        // 前進.
+                        if ((rule_distance - (i + 1) != your_matchcard[0] || rule_distance
+                                - (i + 1) != your_matchcard[1]) || my_hand[i] > your_matchaverage) {
+                            my_actioncard = i + 1;
+                            my_actionid = 101;
+                            my_movement = false;
+                            System.out.println("movement:" + my_actioncard);
+                            canForwardorAttack = true;
+                            break;
+                        }
+
+                    } else {
+                        System.out.println("miss:" + i);
+                    }
                 }
             }
+            if (canForwardorAttack == false) {
+                for (int i = 0; i < 5; i++) {
+                    if (my_hand[i] != 0) {
+                        // 後退.
+                        if (rule_distance - (i + 1) != your_matchcard[0] || rule_distance
+                                - (i + 1) != your_matchcard[1]) {
+                            my_actioncard = i + 1;
+                            my_actionid = 101;
+                            my_movement = true;
+                            System.out.println("movement:" + my_actioncard);
+                            break;
+                        }
+                    }
+                }
+            }
+        } else if (my_plan == 2) {
+
         }
+
     }
 
     private void algorithm_player1() {
@@ -256,40 +331,107 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
          * }
          * }
          */
-        boolean canForwardorAttack = false; // 前進か攻撃できるか？.
-        for (int i = 4; i >= 0; i--) {
-            if (my_hand[i] != 0) {
-                if (i + 1 == rule_distance) {
-                    // 攻撃
-                    my_actioncard = i + 1;
-                    my_actionid = 102;
-                    System.out.println("attack:" + my_actioncard);
-                    canForwardorAttack = true;
-                    break;
-                } else if (i + 1 < rule_distance) {
-                    // 前進.
-                    my_actioncard = i + 1;
-                    my_actionid = 101;
-                    my_movement = false;
-                    System.out.println("movement:" + my_actioncard);
-                    canForwardorAttack = true;
-                    break;
-                } else {
-                    System.out.println("miss:" + i);
-                }
+        // 作戦決定.
+        // 4ターン目(自分が2回行動する)までに作戦決定する.
+        if (rule_turn <= 2) {
+            // 一回目はとりあえず最大値前進.
+            my_plan = 1;
+        } else if (rule_turn <= 4) {
+            if ((my_position <= 19 && my_hand[3] + my_hand[4] >= 1) || my_hand[3] + my_hand[4] >= 2) {
+                /*
+                 * 序盤で中央まで近づく.
+                 * 
+                 */
+                my_plan = 1;
+            } else {
+                /*
+                 * 序盤に進めれない.
+                 * 
+                 */
+                my_plan = 2;
             }
         }
-        if (canForwardorAttack == false) {
-            for (int i = 0; i < 5; i++) {
+        System.out.println("plan:" + my_plan);
+
+        // 勝負するカード決定.
+        Map<Integer, Integer> map = new HashMap<>();
+        map.put(0, my_hand[0]);
+        map.put(1, my_hand[1]);
+        map.put(2, my_hand[2]);
+        map.put(3, my_hand[3]);
+        map.put(4, my_hand[4]);
+        List<Map.Entry<Integer, Integer>> list = new ArrayList<>(map.entrySet());
+        list.sort((entry1, entry2) -> entry2.getValue().compareTo(entry1.getValue()));
+        my_matchcard[0] = list.get(0).getKey(); // 第1候補.
+        my_matchcard[1] = list.get(1).getKey(); // 第2候補.
+        System.out.println("my_matchcard : " + (my_matchcard[0] + 1) + " or " + (my_matchcard[1] + 1));
+
+        // 相手の勝負するカードの推定.
+        Map<Integer, Integer> map1 = new HashMap<>();
+        map1.put(0, rule_remain[0]);
+        map1.put(1, rule_remain[1]);
+        map1.put(2, rule_remain[2]);
+        map1.put(3, rule_remain[3]);
+        map1.put(4, rule_remain[4]);
+        List<Map.Entry<Integer, Integer>> list1 = new ArrayList<>(map1.entrySet());
+        list1.sort((entry1, entry2) -> entry2.getValue().compareTo(entry1.getValue()));
+        your_matchcard[0] = list1.get(0).getKey(); // 第1候補.
+        your_matchcard[1] = list1.get(1).getKey(); // 第2候補.
+        System.out.println("your_matchcard : " + (your_matchcard[0] + 1) + " or " + (your_matchcard[1] + 1));
+
+        if (my_plan == 0) {
+
+        } else if (my_plan == 1 || my_plan == 2) {
+            boolean canForwardorAttack = false; // 前進か攻撃できるか？.
+            for (int i = 4; i >= 0; i--) {
                 if (my_hand[i] != 0) {
-                    // 後退.
-                    my_actioncard = i + 1;
-                    my_actionid = 101;
-                    my_movement = true;
-                    System.out.println("movement:" + my_actioncard);
-                    break;
+                    if (i + 1 == rule_distance) {
+                        if (((i == my_matchcard[0] || i == my_matchcard[1])
+                                && (my_hand[i] >= your_matchaverage))
+                                || my_hand[0] + my_hand[1] + my_hand[2]
+                                        + my_hand[3] + my_hand[4] != 5) {
+                            // 攻撃
+                            my_actioncard = i + 1;
+                            my_actionid = 102;
+                            System.out.println("attack:" + my_actioncard);
+                            canForwardorAttack = true;
+
+                            break;
+                        }
+                    } else if (i + 1 < rule_distance) {
+                        // 前進.
+                        if ((rule_distance - (i + 1) != your_matchcard[0] || rule_distance
+                                - (i + 1) != your_matchcard[1]) || my_hand[i] > your_matchaverage) {
+                            my_actioncard = i + 1;
+                            my_actionid = 101;
+                            my_movement = false;
+                            System.out.println("movement:" + my_actioncard);
+                            canForwardorAttack = true;
+                            break;
+                        }
+
+                    } else {
+                        System.out.println("miss:" + i);
+                    }
                 }
             }
+            if (canForwardorAttack == false) {
+                for (int i = 0; i < 5; i++) {
+                    if (my_hand[i] != 0) {
+                        // 後退.
+                        if (rule_distance - (i + 1) != your_matchcard[0] || rule_distance
+                                - (i + 1) != your_matchcard[1]) {
+                            my_actioncard = i + 1;
+                            my_actionid = 101;
+                            my_movement = true;
+                            System.out.println("movement:" + my_actioncard);
+                            break;
+                        }
+                    }
+                }
+            }
+        } else if (my_plan == 2) {
+
         }
     }
 
