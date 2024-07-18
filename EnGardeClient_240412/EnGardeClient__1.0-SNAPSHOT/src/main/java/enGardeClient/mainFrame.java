@@ -177,30 +177,8 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
         for (int i = 0; i < 5; i++) {
             rule_cemetery[i] = 0;
         }
-        // 評価値初期化.
-        /*
-         * /
-         * my_evaluate.put("1F", Float.valueOf(0));
-         * my_evaluate.put("2F", Float.valueOf(0));
-         * my_evaluate.put("3F", Float.valueOf(0));
-         * my_evaluate.put("4F", Float.valueOf(0));
-         * my_evaluate.put("5F", Float.valueOf(0));
-         * my_evaluate.put("1B", Float.valueOf(0));
-         * my_evaluate.put("2B", Float.valueOf(0));
-         * my_evaluate.put("3B", Float.valueOf(0));
-         * my_evaluate.put("4B", Float.valueOf(0));
-         * my_evaluate.put("5B", Float.valueOf(0));
-         */
         System.out.println("\n" + rule_roundcount + "end");
         System.out.println("average : " + your_matchaverage);
-        /*
-         * if (Integer.parseInt(data.get("Winner")) == my_attackdirection) {
-         * System.out.println("win");
-         * } else {
-         * System.out.println("lose");
-         * }
-         * System.out.println(rule_win + " vs " + rule_lose);
-         */
     }
 
     private void get_GameEnd(HashMap<String, String> data) {
@@ -233,29 +211,6 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
     }
 
     private void algorithm_player0() {
-
-        // 作戦決定.
-        // 4ターン目(自分が2回行動する)までに作戦決定する.
-        if (rule_turn <= 2) {
-            // 一回目はとりあえず最大値前進.
-            my_plan = 1;
-        } else if (rule_turn <= 4) {
-            if ((my_position >= 5 && my_hand[3] + my_hand[4] >= 1) || my_hand[3] + my_hand[4] >= 2) {
-                /*
-                 * 序盤で中央まで近づく.
-                 * 
-                 */
-                my_plan = 1;
-            } else {
-                /*
-                 * 序盤に進めれない.
-                 * 
-                 */
-                my_plan = 2;
-            }
-        }
-        System.out.println("plan:" + my_plan);
-
         // 勝負するカード決定.
         Map<Integer, Integer> map = new HashMap<>();
         map.put(0, my_hand[0]);
@@ -504,9 +459,9 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
         float num = 0;
         if (my_hand[card - 1] >= 1 && rule_distance > card) {
             num = 1.0f;
-            if (rule_distance < 6) {
+            if (rule_distance - card < 6) {
                 // パリィできるか？.
-                num = 0.1f + num * 2 * my_hand[rule_distance - card - 1];
+                num = 0.1f + num * card + num * my_hand[rule_distance - card - 1];
             } else {
                 num = num * card;
             }
@@ -739,11 +694,7 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
                 case "DoPlay":
                     // プレイヤーのターンが来たことを知らせる.
                     get_DoPlay(data);
-                    if (my_attackdirection == 0) {
-                        algorithm_player0();
-                    } else if (my_attackdirection == 1) {
-                        algorithm_player0();
-                    }
+                    algorithm_player0();
                     this.sendEvaluateMessage();
                     break;
                 case "RoundEnd":
