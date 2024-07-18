@@ -67,6 +67,7 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
     private int rule_deck; // デッキの残りカード.
     private int rule_turn; // 何ターン目,1ターン目スタート.
     private int rule_distance; // 相手との距離.
+    private int rule_distance_old; // 前回の相手との距離.
     private int rule_cemetery[] = new int[5]; // 使用済みカード、墓地、0番目->1の使用済み枚数.
     private int rule_remain[] = new int[5]; // 残りカード.
     private List<Boolean> rule_issue = new ArrayList<>(Arrays.asList(true, false)); // 勝敗履歴 1->勝ち.
@@ -143,6 +144,7 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
 
     /** DoPlayからデータを取得 */
     private void get_DoPlay(HashMap<String, String> data) {
+        rule_distance_old = rule_distance;
         if (Integer.parseInt(data.get("MessageID")) == 101) {
 
         } else if (Integer.parseInt(data.get("MessageID")) == 102) {
@@ -182,6 +184,14 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
 
         System.out.println("\n" + rule_roundcount + "end");
         System.out.println("average : " + your_matchaverage);
+        /*
+         * if (Integer.parseInt(data.get("Winner")) == my_attackdirection) {
+         * System.out.println("win");
+         * } else {
+         * System.out.println("lose");
+         * }
+         * System.out.println(rule_win + " vs " + rule_lose);
+         */
     }
 
     private void get_GameEnd(HashMap<String, String> data) {
@@ -263,18 +273,192 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
         your_matchcard[1] = list1.get(1).getKey(); // 第2候補.
         System.out.println("your_matchcard : " + (your_matchcard[0] + 1) + " or " + (your_matchcard[1] + 1));
 
-        double a = 2, f = 1.5, b = 1; // 評価値係数.
-        my_evaluate.put("1F", ((float) a * can_attack(1)) + ((float) f * can_forward(1)));
-        my_evaluate.put("2F", ((float) a * can_attack(2)) + ((float) f * can_forward(2)));
-        my_evaluate.put("3F", ((float) a * can_attack(3)) + ((float) f * can_forward(3)));
-        my_evaluate.put("4F", ((float) a * can_attack(4)) + ((float) f * can_forward(4)));
-        my_evaluate.put("5F", ((float) a * can_attack(5)) + ((float) f * can_forward(5)));
-        my_evaluate.put("1B", (float) b * can_back(1));
-        my_evaluate.put("2B", (float) b * can_back(2));
-        my_evaluate.put("3B", (float) b * can_back(3));
-        my_evaluate.put("4B", (float) b * can_back(4));
-        my_evaluate.put("5B", (float) b * can_back(5));
+        // 評価値計算.
+        float a = 2f, f = 2f, b = 1f; // 評価値係数.
+        my_evaluate.put("1F", (a * can_attack(1)) + (f * can_forward(1)));
+        my_evaluate.put("2F", (a * can_attack(2)) + (f * can_forward(2)));
+        my_evaluate.put("3F", (a * can_attack(3)) + (f * can_forward(3)));
+        my_evaluate.put("4F", (a * can_attack(4)) + (f * can_forward(4)));
+        my_evaluate.put("5F", (a * can_attack(5)) + (f * can_forward(5)));
+        my_evaluate.put("1B", b * can_back(1));
+        my_evaluate.put("2B", b * can_back(2));
+        my_evaluate.put("3B", b * can_back(3));
+        my_evaluate.put("4B", b * can_back(4));
+        my_evaluate.put("5B", b * can_back(5));
 
+        // 正規化.
+        float sum = 0.0f;
+        for (float value : my_evaluate.values()) {
+            sum += value;
+        }
+        for (String key : my_evaluate.keySet()) {
+            my_evaluate.put(key, my_evaluate.get(key) / sum);
+            System.out.println(key + " : " + my_evaluate.get(key));
+        }
+
+        // ソートして最大値を実行.
+        LinkedHashMap<String, Float> sortedMap = sortByValueDesc(my_evaluate);
+        if (getMaxKey(sortedMap) == "1F") {
+            if (can_attack(1) != 0.0f) {
+                // 攻撃
+                my_actioncard = 1;
+                my_actionid = 102;
+                System.out.println("attack:" + my_actioncard);
+            } else {
+                my_actioncard = 1;
+                my_actionid = 101;
+                my_movement = false;
+                System.out.println("movement:" + my_actioncard);
+            }
+        } else if (getMaxKey(sortedMap) == "2F") {
+            if (can_attack(2) != 0.0f) {
+                // 攻撃
+                my_actioncard = 2;
+                my_actionid = 102;
+                System.out.println("attack:" + my_actioncard);
+            } else {
+                my_actioncard = 2;
+                my_actionid = 101;
+                my_movement = false;
+                System.out.println("movement:" + my_actioncard);
+            }
+        } else if (getMaxKey(sortedMap) == "3F") {
+            if (can_attack(3) != 0.0f) {
+                // 攻撃
+                my_actioncard = 3;
+                my_actionid = 102;
+                System.out.println("attack:" + my_actioncard);
+            } else {
+                my_actioncard = 3;
+                my_actionid = 101;
+                my_movement = false;
+                System.out.println("movement:" + my_actioncard);
+            }
+        } else if (getMaxKey(sortedMap) == "4F") {
+            if (can_attack(4) != 0.0f) {
+                // 攻撃
+                my_actioncard = 4;
+                my_actionid = 102;
+                System.out.println("attack:" + my_actioncard);
+            } else {
+                my_actioncard = 4;
+                my_actionid = 101;
+                my_movement = false;
+                System.out.println("movement:" + my_actioncard);
+            }
+        } else if (getMaxKey(sortedMap) == "5F") {
+            if (can_attack(5) != 0.0f) {
+                // 攻撃
+                my_actioncard = 5;
+                my_actionid = 102;
+                System.out.println("attack:" + my_actioncard);
+            } else {
+                my_actioncard = 5;
+                my_actionid = 101;
+                my_movement = false;
+                System.out.println("movement:" + my_actioncard);
+            }
+        } else if (getMaxKey(sortedMap) == "1B") {
+            my_actioncard = 1;
+            my_actionid = 101;
+            my_movement = true;
+            System.out.println("movement:" + my_actioncard);
+        } else if (getMaxKey(sortedMap) == "2B") {
+            my_actioncard = 2;
+            my_actionid = 101;
+            my_movement = true;
+            System.out.println("movement:" + my_actioncard);
+        } else if (getMaxKey(sortedMap) == "3B") {
+            my_actioncard = 3;
+            my_actionid = 101;
+            my_movement = true;
+            System.out.println("movement:" + my_actioncard);
+        } else if (getMaxKey(sortedMap) == "4B") {
+            my_actioncard = 4;
+            my_actionid = 101;
+            my_movement = true;
+            System.out.println("movement:" + my_actioncard);
+        } else if (getMaxKey(sortedMap) == "5B") {
+            my_actioncard = 5;
+            my_actionid = 101;
+            my_movement = true;
+            System.out.println("movement:" + my_actioncard);
+        }
+
+    }
+
+    private void algorithm_player1() {
+        // 作戦決定.
+        // 4ターン目(自分が2回行動する)までに作戦決定する.
+        if (rule_turn <= 2) {
+            // 一回目はとりあえず最大値前進.
+            my_plan = 1;
+        } else if (rule_turn <= 4) {
+            if ((my_position <= 19 && my_hand[3] + my_hand[4] >= 1) || my_hand[3] + my_hand[4] >= 2) {
+                /*
+                 * 序盤で中央まで近づく.
+                 * 
+                 */
+                my_plan = 1;
+            } else {
+                /*
+                 * 序盤に進めれない.
+                 * 
+                 */
+                my_plan = 2;
+            }
+        }
+        System.out.println("plan:" + my_plan);
+
+        // 勝負するカード決定.
+        Map<Integer, Integer> map = new HashMap<>();
+        map.put(0, my_hand[0]);
+        map.put(1, my_hand[1]);
+        map.put(2, my_hand[2]);
+        map.put(3, my_hand[3]);
+        map.put(4, my_hand[4]);
+        List<Map.Entry<Integer, Integer>> list = new ArrayList<>(map.entrySet());
+        list.sort((entry1, entry2) -> entry2.getValue().compareTo(entry1.getValue()));
+        my_matchcard[0] = list.get(0).getKey(); // 第1候補.
+        my_matchcard[1] = list.get(1).getKey(); // 第2候補.
+        System.out.println("my_matchcard : " + (my_matchcard[0] + 1) + " or " + (my_matchcard[1] + 1));
+
+        // 相手の勝負するカードの推定.
+        Map<Integer, Integer> map1 = new HashMap<>();
+        map1.put(0, rule_remain[0]);
+        map1.put(1, rule_remain[1]);
+        map1.put(2, rule_remain[2]);
+        map1.put(3, rule_remain[3]);
+        map1.put(4, rule_remain[4]);
+        List<Map.Entry<Integer, Integer>> list1 = new ArrayList<>(map1.entrySet());
+        list1.sort((entry1, entry2) -> entry2.getValue().compareTo(entry1.getValue()));
+        your_matchcard[0] = list1.get(0).getKey(); // 第1候補.
+        your_matchcard[1] = list1.get(1).getKey(); // 第2候補.
+        System.out.println("your_matchcard : " + (your_matchcard[0] + 1) + " or " + (your_matchcard[1] + 1));
+
+        // 評価値計算.
+        float a = 2f, f = 1.5f, b = 1f; // 評価値係数.
+        my_evaluate.put("1F", (a * can_attack(1)) + (f * can_forward(1)));
+        my_evaluate.put("2F", (a * can_attack(2)) + (f * can_forward(2)));
+        my_evaluate.put("3F", (a * can_attack(3)) + (f * can_forward(3)));
+        my_evaluate.put("4F", (a * can_attack(4)) + (f * can_forward(4)));
+        my_evaluate.put("5F", (a * can_attack(5)) + (f * can_forward(5)));
+        my_evaluate.put("1B", b * can_back(1));
+        my_evaluate.put("2B", b * can_back(2));
+        my_evaluate.put("3B", b * can_back(3));
+        my_evaluate.put("4B", b * can_back(4));
+        my_evaluate.put("5B", b * can_back(5));
+
+        // 正規化.
+        float sum = 0.0f;
+        for (float value : my_evaluate.values()) {
+            sum += value;
+        }
+        for (String key : my_evaluate.keySet()) {
+            my_evaluate.put(key, my_evaluate.get(key) / sum);
+        }
+
+        // ソートして最大値を実行.
         LinkedHashMap<String, Float> sortedMap = sortByValueDesc(my_evaluate);
         if (getMaxKey(sortedMap) == "1F") {
             if (can_attack(1) != 0) {
@@ -361,181 +545,6 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
             my_actionid = 101;
             my_movement = true;
             System.out.println("movement:" + my_actioncard);
-        }
-        /*
-         * if (my_plan == 0) {
-         * 
-         * } else if (my_plan == 1 || my_plan == 2) {
-         * boolean canForwardorAttack = false; // 前進か攻撃できるか？.
-         * for (int i = 4; i >= 0; i--) {
-         * if (my_hand[i] != 0) {
-         * if (i + 1 == rule_distance) {
-         * if (((i == my_matchcard[0] || i == my_matchcard[1])
-         * && (my_hand[i] >= your_matchaverage))
-         * || my_hand[0] + my_hand[1] + my_hand[2]
-         * + my_hand[3] + my_hand[4] != 5) {
-         * // 攻撃
-         * my_actioncard = i + 1;
-         * my_actionid = 102;
-         * System.out.println("attack:" + my_actioncard);
-         * canForwardorAttack = true;
-         * 
-         * break;
-         * }
-         * } else if (i + 1 < rule_distance) {
-         * // 前進.
-         * if ((rule_distance - (i + 1) != your_matchcard[0] || rule_distance
-         * - (i + 1) != your_matchcard[1]) || my_hand[i] > your_matchaverage) {
-         * my_actioncard = i + 1;
-         * my_actionid = 101;
-         * my_movement = false;
-         * System.out.println("movement:" + my_actioncard);
-         * canForwardorAttack = true;
-         * break;
-         * }
-         * 
-         * } else {
-         * System.out.println("miss:" + i);
-         * }
-         * }
-         * }
-         * if (canForwardorAttack == false) {
-         * for (int i = 0; i < 5; i++) {
-         * if (my_hand[i] != 0) {
-         * // 後退.
-         * if (rule_distance - (i + 1) != your_matchcard[0] || rule_distance
-         * - (i + 1) != your_matchcard[1]) {
-         * my_actioncard = i + 1;
-         * my_actionid = 101;
-         * my_movement = true;
-         * System.out.println("movement:" + my_actioncard);
-         * break;
-         * }
-         * }
-         * }
-         * }
-         * } else if (my_plan == 2) {
-         * 
-         * }
-         */
-
-    }
-
-    private void algorithm_player1() {
-        // 大きい順に出す
-        // 評価値送信.
-        /*
-         * while (true) {
-         * try {
-         * sendEvaluateMessage();
-         * System.out.println("sendEvaluateMessage");
-         * break;
-         * } catch (IOException | InterruptedException e) {
-         * System.out.println("Error:sendEvaluateMessage");
-         * }
-         * }
-         */
-        // 作戦決定.
-        // 4ターン目(自分が2回行動する)までに作戦決定する.
-        if (rule_turn <= 2) {
-            // 一回目はとりあえず最大値前進.
-            my_plan = 1;
-        } else if (rule_turn <= 4) {
-            if ((my_position <= 19 && my_hand[3] + my_hand[4] >= 1) || my_hand[3] + my_hand[4] >= 2) {
-                /*
-                 * 序盤で中央まで近づく.
-                 * 
-                 */
-                my_plan = 1;
-            } else {
-                /*
-                 * 序盤に進めれない.
-                 * 
-                 */
-                my_plan = 2;
-            }
-        }
-        System.out.println("plan:" + my_plan);
-
-        // 勝負するカード決定.
-        Map<Integer, Integer> map = new HashMap<>();
-        map.put(0, my_hand[0]);
-        map.put(1, my_hand[1]);
-        map.put(2, my_hand[2]);
-        map.put(3, my_hand[3]);
-        map.put(4, my_hand[4]);
-        List<Map.Entry<Integer, Integer>> list = new ArrayList<>(map.entrySet());
-        list.sort((entry1, entry2) -> entry2.getValue().compareTo(entry1.getValue()));
-        my_matchcard[0] = list.get(0).getKey(); // 第1候補.
-        my_matchcard[1] = list.get(1).getKey(); // 第2候補.
-        System.out.println("my_matchcard : " + (my_matchcard[0] + 1) + " or " + (my_matchcard[1] + 1));
-
-        // 相手の勝負するカードの推定.
-        Map<Integer, Integer> map1 = new HashMap<>();
-        map1.put(0, rule_remain[0]);
-        map1.put(1, rule_remain[1]);
-        map1.put(2, rule_remain[2]);
-        map1.put(3, rule_remain[3]);
-        map1.put(4, rule_remain[4]);
-        List<Map.Entry<Integer, Integer>> list1 = new ArrayList<>(map1.entrySet());
-        list1.sort((entry1, entry2) -> entry2.getValue().compareTo(entry1.getValue()));
-        your_matchcard[0] = list1.get(0).getKey(); // 第1候補.
-        your_matchcard[1] = list1.get(1).getKey(); // 第2候補.
-        System.out.println("your_matchcard : " + (your_matchcard[0] + 1) + " or " + (your_matchcard[1] + 1));
-
-        if (my_plan == 0) {
-
-        } else if (my_plan == 1 || my_plan == 2) {
-            boolean canForwardorAttack = false; // 前進か攻撃できるか？.
-            for (int i = 4; i >= 0; i--) {
-                if (my_hand[i] != 0) {
-                    if (i + 1 == rule_distance) {
-                        if (((i == my_matchcard[0] || i == my_matchcard[1])
-                                && (my_hand[i] >= your_matchaverage))
-                                || my_hand[0] + my_hand[1] + my_hand[2]
-                                        + my_hand[3] + my_hand[4] != 5) {
-                            // 攻撃
-                            my_actioncard = i + 1;
-                            my_actionid = 102;
-                            System.out.println("attack:" + my_actioncard);
-                            canForwardorAttack = true;
-
-                            break;
-                        }
-                    } else if (i + 1 < rule_distance) {
-                        // 前進.
-                        if ((rule_distance - (i + 1) != your_matchcard[0] || rule_distance
-                                - (i + 1) != your_matchcard[1]) || my_hand[i] > your_matchaverage) {
-                            my_actioncard = i + 1;
-                            my_actionid = 101;
-                            my_movement = false;
-                            System.out.println("movement:" + my_actioncard);
-                            canForwardorAttack = true;
-                            break;
-                        }
-
-                    } else {
-                        System.out.println("miss:" + i);
-                    }
-                }
-            }
-            if (canForwardorAttack == false) {
-                for (int i = 0; i < 5; i++) {
-                    if (my_hand[i] != 0) {
-                        // 後退.
-                        if (rule_distance - (i + 1) != your_matchcard[0] || rule_distance
-                                - (i + 1) != your_matchcard[1]) {
-                            my_actioncard = i + 1;
-                            my_actionid = 101;
-                            my_movement = true;
-                            System.out.println("movement:" + my_actioncard);
-                            break;
-                        }
-                    }
-                }
-            }
-        } else if (my_plan == 2) {
-
         }
     }
 
@@ -624,18 +633,19 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
 
     }
 
-    private int can_attack(int card) {
-        int num = 0; // 攻撃できれば1、できなければ0.
+    private float can_attack(int card) {
+        float num = 0; // 攻撃できれば1、できなければ0.
         if (my_hand[card - 1] != 0 && rule_distance == card) {
             // 攻撃できる.
             num = 1;
             if (my_hand[0] + my_hand[1] + my_hand[2]
                     + my_hand[3] + my_hand[4] != 5) {
                 // カウンター.
-                num = num * 3;
+                // 絶対実行.
+                num = num * 10;
             } else if (my_hand[card - 1] >= your_matchaverage) {
                 // 多分勝てる.
-                num = num * 2;
+                num = num * my_hand[card - 1];
             }
         } else {
             num = 0;
@@ -643,13 +653,13 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
         return num;
     }
 
-    private int can_forward(int card) {
-        int num = 0;
+    private float can_forward(int card) {
+        float num = 0;
         if (my_hand[card - 1] != 0 && rule_distance > card) {
             num = 1;
-            if (rule_distance - card < 6) {
+            if (rule_distance < 6) {
                 // パリィできるか？.
-                num = num * my_hand[rule_distance - card - 1];
+                num = num * 2 * my_hand[rule_distance - card - 1];
             } else {
                 num = num * card;
             }
@@ -660,27 +670,35 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
         return num;
     }
 
-    private int can_back(int card) {
-        int num = 0;
+    private float can_back(int card) {
+        float num = 0;
         if (my_hand[card - 1] != 0) {
             // カードがあるか？.
-            if (my_attackdirection == 0 && my_position - card >= 0) {
+            if (my_attackdirection == 0 && my_position - card >= 1) {
                 // 1スタートかつそのカードが出せる.
                 num = 1;
                 if (rule_distance + card < 6) {
                     // パリィできるか？.
                     num = num * my_hand[rule_distance + card - 1]; // パリィできる枚数が評価値.
                 } else {
-                    num = num * (5 - card);
+                    num = num * (6 - card);
                 }
-            } else if (my_attackdirection == 1 && my_position + card <= 24) {
+                // 同じ距離の連続を避ける.
+                if (rule_distance_old == my_position - card) {
+                    num = num * 0.8f;
+                }
+            } else if (my_attackdirection == 1 && my_position + card <= 23) {
                 // 23スタートかつそのカードが出せる.
                 num = 1;
                 if (rule_distance + card < 6) {
                     // パリィできるか？.
                     num = num * my_hand[rule_distance + card - 1]; // パリィできる枚数が評価値.
                 } else {
-                    num = num * (5 - card);
+                    num = num * (6 - card);
+                }
+                // 同じ距離の連続を避ける.
+                if (rule_distance_old == my_position + card) {
+                    num = num * 0.8f;
                 }
             } else {
                 num = 0;
@@ -877,7 +895,7 @@ public class mainFrame extends javax.swing.JFrame implements ActionListener {
                     if (my_attackdirection == 0) {
                         algorithm_player0();
                     } else if (my_attackdirection == 1) {
-                        algorithm_player1();
+                        algorithm_player0();
                     }
                     break;
                 case "RoundEnd":
